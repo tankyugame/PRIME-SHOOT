@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>宇宙ゲーム フル版（暗めの白星・点滅）</title>
+<style>
+body { margin:0; padding:0; font-family:Arial,sans-serif; display:flex; justify-content:center; background:black;}
+#game-container { width:360px; height:640px; border:2px solid #222; border-radius:15px; overflow:hidden; position:relative;}
+#top-field { width:100%; height:75%; position:relative;
+  background: radial-gradient(ellipse at center, #000022 0%, #000000 100%);
+}
+.star { position:absolute; border-radius:50%; }
+#rocket { width:60px; height:88px; position:absolute; transition:none; z-index:5; }
+.square-container { position:absolute; width:65px; height:65px; }
+.square-container img { width:100%; height:100%; }
+.square-container span { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#FFAF00; font-weight:bold; font-size:1.3em; }
+.bullet-container { position:absolute; width:40px; height:40px; z-index:10; }
+.bullet-container img { width:100%; height:100%; }
+.bullet-container span { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; font-weight:bold; font-size:1em; }
+#bottom-ui { width:100%; height:25%; background-color:#00256F; display:flex; justify-content:space-between; align-items:center; padding:0 5px; }
+#control-left, #control-center, #control-fire { display:flex; align-items:center; flex-direction:column; }
+#control-left { flex-direction:row; }
+.arrow-btn, #fire-btn { border-radius:50%; cursor:pointer; display:flex; justify-content:center; align-items:center; }
+.arrow-btn { width:50px; height:50px; border:2px solid #00FFFF; background-color:#004080; color:#00FFFF; font-size:1.5em; margin:0 5px; }
+#fire-btn {
+  width:60px; height:60px;
+  border:2px solid #00FFFF;
+  background: linear-gradient(145deg,#00FFFF,#0088CC);
+  box-shadow: 0 0 15px #00FFFF, inset 0 0 5px #00FFFF;
+  transition:0.2s;
+}
+#fire-btn:hover { transform: scale(1.05); box-shadow:0 0 20px #00FFFF, inset 0 0 7px #00FFFF; }
+#score { color:#00FFFF; font-size:1.3em; font-weight:bold; text-shadow:0 0 5px #00FFFF; margin-bottom:5px; }
+#circle-gauge { width:50px; height:50px; border-radius:50%; border:3px solid #00FFFF; background: conic-gradient(#00FFFF 0% 100%, #004080 0% 100%); }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="top-field"></div>
+  <img id="rocket" src="戦闘機1.png" alt="戦闘機">
+  <div id="bottom-ui">
+    <div id="control-left">
+      <div id="left-btn" class="arrow-btn">◀</div>
+      <div id="right-btn" class="arrow-btn">▶</div>
+    </div>
+    <div id="control-center">
+      <div id="score">スコア: 0</div>
+      <div id="circle-gauge"></div>
+    </div>
+    <div id="control-fire">
+      <div id="fire-btn"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 基本設定
+const cols=5, rows=6, fieldWidth=360, squareSize=65, gap=8;
+const rocketWidth=60, rocketHeight=88, cellWidth=squareSize+gap;
+const startX = (fieldWidth - (cols*squareSize + (cols-1)*gap))/2;
+const startY=0, gapY=gap;
+let rocketXPos=2;
+
+// 戦闘機位置
+let rocketTop = 640*0.75 - rocketHeight - 5; 
+const rocket = document.getElementById("rocket");
+function updateRocketPosition(){ 
+    rocket.style.left = `${startX + rocketXPos*cellWidth}px`; 
+    rocket.style.top = `${rocketTop}px`; 
+}
+updateRocketPosition();
+
+// 移動
+function moveLeft(){ rocketXPos=(rocketXPos-1+cols)%cols; updateRocketPosition(); }
+function moveRight(){ rocketXPos=(rocketXPos+1)%cols; updateRocketPosition(); }
+document.getElementById("left-btn").addEventListener("click",moveLeft);
+document.getElementById("right-btn").addEventListener("click",moveRight);
+document.addEventListener("keydown",(e)=>{ if(e.code==="ArrowLeft") moveLeft(); if(e.code==="ArrowRight") moveRight(); });
+
+// 星（白・少し暗め・ランダム大きさ・ゆっくり点滅）
+const topField = document.getElementById("top-field");
+const stars = [];
+for(let i=0;i<70;i++){
+  const star = document.createElement("div"); 
+  star.classList.add("star");
+  const size = Math.random()*3+1;
+  star.style.width = star.style.height = `${size}px`;
+  star.style.left = `${Math.random()*fieldWidth}px`;
+  star.style.top = `${Math.random()*480}px`;
+  star.style.background = "white";
+  star.style.opacity = Math.random()*0.3 + 0.1; // 暗め（0.1〜0.4）
+  star.dataset.baseOpacity = star.style.opacity;
+  star.dataset.phase = Math.random()*Math.PI*2;
+  topField.appendChild(star);
+  stars.push(star);
+}
+setInterval(()=>{
+  stars.forEach(star=>{
+    let phase = parseFloat(star.dataset.phase);
+    phase += 0.01;
+    star.dataset.phase = phase;
+    let base = parseFloat(star.dataset.baseOpacity);
+    star.style.opacity = base + 0.2 * Math.sin(phase); // ゆっくり点滅
+  });
+},50);
+
+// 四角
+let squares=[];
+function addSquares(initial=false){
+  if(!initial){ squares.forEach(sq=>{ sq.y+=1; if(sq.y>=rows-1) sq.y=rows-1; sq.element.style.top=`${startY + sq.y*(squareSize+gapY)}px`; }); }
+  for(let i=0;i<cols;i++){
+    const container=document.createElement("div"); container.classList.add("square-container");
+    container.style.left=`${startX + i*cellWidth}px`; container.style.top=`${startY}px`;
+    const img=document.createElement("img"); img.src="四角.png"; container.appendChild(img);
+    const primes=[2,3,5,7]; let selected=[]; while(selected.length<3){ selected.push(primes[Math.floor(Math.random()*primes.length)]); }
+    const product = selected[0]*selected[1]*selected[2];
+    const span=document.createElement("span"); span.textContent=product; container.appendChild(span);
+    topField.appendChild(container);
+    squares.push({element:container, x:i, y:0, value:product});
+  }
+}
+addSquares(true);
+
+// 円形ゲージ
+const gauge=document.getElementById("circle-gauge"); let angle=0;
+setInterval(()=>{ angle+=3.6; if(angle>=360){ angle=0; addSquares(); }
+gauge.style.background=`conic-gradient(#00FFFF 0% ${angle}deg, #004080 ${angle}deg 360deg)`; },100);
+
+// 素因数分解
+function primeFactors(n){
+  let factors=[]; let num=n;
+  for(let i=2;i<=num;i++){ while(num%i===0){ factors.push(i); num/=i; } }
+  return factors;
+}
+
+// 玉生成（必ず割れる数字）
+function generateBulletValue(){
+  let factors=[];
+  for(let col=0; col<cols; col++){
+    let sqInCol = squares.filter(s=>s.x===col);
+    if(sqInCol.length===0) continue;
+    let bottomSquare = sqInCol.reduce((prev,curr)=>curr.y>prev.y?curr:prev);
+    factors.push(...primeFactors(bottomSquare.value));
+  }
+  if(factors.length===0) return [2,3,5,7][Math.floor(Math.random()*4)];
+  return factors[Math.floor(Math.random()*factors.length)];
+}
+
+// 玉管理
+let bullets=[], nextBulletValue=generateBulletValue();
+function createNextBullet(){
+  const container=document.createElement("div"); container.classList.add("bullet-container"); container.style.zIndex=10;
+  const img=document.createElement("img"); img.src="玉.png"; container.appendChild(img);
+  const span=document.createElement("span"); span.textContent=nextBulletValue; container.appendChild(span);
+  topField.appendChild(container);
+
+  let bullet={element:container, value:nextBulletValue, active:false, y:rocketTop - 20};
+  bullets.push(bullet);
+  container.style.left=`${startX + rocketXPos*cellWidth + (rocketWidth-40)/2}px`;
+  container.style.top=`${rocketTop - 20}px`;
+
+  const follow=setInterval(()=>{
+    if(!bullet.active){
+      bullet.element.style.left=`${startX + rocketXPos*cellWidth + (rocketWidth-40)/2}px`;
+      bullet.element.style.top=`${rocketTop - 20}px`;
+      bullet.y = rocketTop - 20;
+    }else{ clearInterval(follow); }
+  },16);
+}
+createNextBullet();
+
+// 発射（単発）
+let firePressed=false;
+function fire(){
+  const b = bullets.find(bu=>!bu.active);
+  if(!b) return;
+  b.active=true;
+  moveBullet(b);
+  nextBulletValue=generateBulletValue();
+  createNextBullet();
+  firePressed=true;
+}
+
+// 玉移動と当たり判定
+let score=0; const scoreElem=document.getElementById("score");
+function moveBullet(bullet){
+  const interval=setInterval(()=>{
+    bullet.y -=12;
+    bullet.element.style.top = bullet.y + "px";
+    for(let sq of squares){
+      const rect = sq.element.getBoundingClientRect();
+      const bulletRect = bullet.element.getBoundingClientRect();
+      if(!(bulletRect.right < rect.left || bulletRect.left > rect.right || bulletRect.bottom < rect.top || bulletRect.top > rect.bottom)){
+        if(sq.value % bullet.value ===0){
+          sq.value = sq.value / bullet.value;
+          sq.element.querySelector("span").textContent = sq.value;
+          score+=1; new Audio("正解.wav").play();
+        } else { score-=5; new Audio("不正解.wav").play(); }
+        if(score<0) score=0;
+        if(sq.value===1){ sq.element.remove(); squares = squares.filter(s=>s!==sq); }
+        bullet.element.remove(); bullets = bullets.filter(bu=>bu!==bullet); clearInterval(interval); return;
+      }
+    }
+    if(bullet.y<0){ bullet.element.remove(); bullets = bullets.filter(bu=>bu!==bullet); clearInterval(interval); }
+  },16);
+}
+
+// 発射ボタン・スペースキー（単発制御）
+const fireBtn=document.getElementById("fire-btn");
+fireBtn.addEventListener("mousedown",()=>{ if(!firePressed) fire(); });
+fireBtn.addEventListener("mouseup",()=>{ firePressed=false; });
+fireBtn.addEventListener("mouseleave",()=>{ firePressed=false; });
+document.addEventListener("keydown",(e)=>{ if(e.code==="Space" && !firePressed) fire(); });
+document.addEventListener("keyup",(e)=>{ if(e.code==="Space") firePressed=false; });
+
+// スコア更新
+setInterval(()=>{ scoreElem.textContent="スコア: "+score; },50);
+</script>
+</body>
+</html>
