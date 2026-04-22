@@ -11,26 +11,26 @@ body { margin:0; padding:0; font-family:Arial,sans-serif; display:flex; justify-
   background: radial-gradient(ellipse at center, #000022 0%, #000000 100%);
 }
 .star { position:absolute; border-radius:50%; }
-#rocket { width:60px; height:88px; position:absolute; transition:none; z-index:5; }
+
+/* ★ここだけ追加 */
+#rocket { 
+  width:60px; height:88px; position:absolute; transition:none; z-index:5;
+  pointer-events: none;
+}
+
 .square-container { position:absolute; width:65px; height:65px; }
 .square-container img { width:100%; height:100%; }
 .square-container span { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#FFAF00; font-weight:bold; font-size:1.3em; }
 .bullet-container { position:absolute; width:40px; height:40px; z-index:10; }
 .bullet-container img { width:100%; height:100%; }
 .bullet-container span { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; font-weight:bold; font-size:1em; }
-#bottom-ui { width:100%; height:25%; background-color:#00256F; display:flex; justify-content:space-between; align-items:center; padding:0 5px; }
-#control-left, #control-center, #control-fire { display:flex; align-items:center; flex-direction:column; }
-#control-left { flex-direction:row; }
-.arrow-btn, #fire-btn { border-radius:50%; cursor:pointer; display:flex; justify-content:center; align-items:center; }
-.arrow-btn { width:50px; height:50px; border:2px solid #00FFFF; background-color:#004080; color:#00FFFF; font-size:1.5em; margin:0 5px; }
-#fire-btn {
-  width:60px; height:60px;
-  border:2px solid #00FFFF;
-  background: linear-gradient(145deg,#00FFFF,#0088CC);
-  box-shadow: 0 0 15px #00FFFF, inset 0 0 5px #00FFFF;
-  transition:0.2s;
-}
-#fire-btn:hover { transform: scale(1.05); box-shadow:0 0 20px #00FFFF, inset 0 0 7px #00FFFF; }
+
+/* ボタン非表示 */
+#control-left, #control-fire { display:none; }
+
+#bottom-ui { width:100%; height:25%; background-color:#00256F; display:flex; justify-content:center; align-items:center; padding:0 5px; }
+#control-center { display:flex; align-items:center; flex-direction:column; }
+
 #score { color:#00FFFF; font-size:1.3em; font-weight:bold; text-shadow:0 0 5px #00FFFF; margin-bottom:5px; }
 #circle-gauge { width:50px; height:50px; border-radius:50%; border:3px solid #00FFFF; background: conic-gradient(#00FFFF 0% 100%, #004080 0% 100%); }
 </style>
@@ -56,6 +56,8 @@ body { margin:0; padding:0; font-family:Arial,sans-serif; display:flex; justify-
 </div>
 
 <script>
+// ===== 元コードそのまま =====
+
 // 基本設定
 const cols=5, rows=6, fieldWidth=360, squareSize=65, gap=8;
 const rocketWidth=60, rocketHeight=88, cellWidth=squareSize+gap;
@@ -79,7 +81,7 @@ document.getElementById("left-btn").addEventListener("click",moveLeft);
 document.getElementById("right-btn").addEventListener("click",moveRight);
 document.addEventListener("keydown",(e)=>{ if(e.code==="ArrowLeft") moveLeft(); if(e.code==="ArrowRight") moveRight(); });
 
-// 星（白・少し暗め・ランダム大きさ・ゆっくり点滅）
+// 星
 const topField = document.getElementById("top-field");
 const stars = [];
 for(let i=0;i<70;i++){
@@ -90,7 +92,7 @@ for(let i=0;i<70;i++){
   star.style.left = `${Math.random()*fieldWidth}px`;
   star.style.top = `${Math.random()*480}px`;
   star.style.background = "white";
-  star.style.opacity = Math.random()*0.3 + 0.1; // 暗め（0.1〜0.4）
+  star.style.opacity = Math.random()*0.3 + 0.1;
   star.dataset.baseOpacity = star.style.opacity;
   star.dataset.phase = Math.random()*Math.PI*2;
   topField.appendChild(star);
@@ -102,7 +104,7 @@ setInterval(()=>{
     phase += 0.01;
     star.dataset.phase = phase;
     let base = parseFloat(star.dataset.baseOpacity);
-    star.style.opacity = base + 0.2 * Math.sin(phase); // ゆっくり点滅
+    star.style.opacity = base + 0.2 * Math.sin(phase);
   });
 },50);
 
@@ -135,7 +137,7 @@ function primeFactors(n){
   return factors;
 }
 
-// 玉生成（必ず割れる数字）
+// 玉生成
 function generateBulletValue(){
   let factors=[];
   for(let col=0; col<cols; col++){
@@ -148,7 +150,6 @@ function generateBulletValue(){
   return factors[Math.floor(Math.random()*factors.length)];
 }
 
-// 玉管理
 let bullets=[], nextBulletValue=generateBulletValue();
 function createNextBullet(){
   const container=document.createElement("div"); container.classList.add("bullet-container"); container.style.zIndex=10;
@@ -171,17 +172,38 @@ function createNextBullet(){
 }
 createNextBullet();
 
-// 発射（単発）
+// 発射
 let firePressed=false;
 function fire(){
   const b = bullets.find(bu=>!bu.active);
   if(!b) return;
+
+  b.element.style.left = `${startX + rocketXPos*cellWidth + (rocketWidth-40)/2}px`;
+  b.element.style.top = `${rocketTop - 20}px`;
+  b.y = rocketTop - 20;
+
   b.active=true;
   moveBullet(b);
   nextBulletValue=generateBulletValue();
   createNextBullet();
   firePressed=true;
 }
+
+// タップ操作
+topField.addEventListener("click",(e)=>{
+  const rect = topField.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+
+  let col = Math.floor((x - startX) / cellWidth);
+  if(col < 0) col = 0;
+  if(col >= cols) col = cols - 1;
+
+  rocketXPos = col;
+  updateRocketPosition();
+
+  firePressed = false;
+  requestAnimationFrame(()=>{ fire(); });
+});
 
 // 玉移動と当たり判定
 let score=0; const scoreElem=document.getElementById("score");
@@ -206,14 +228,6 @@ function moveBullet(bullet){
     if(bullet.y<0){ bullet.element.remove(); bullets = bullets.filter(bu=>bu!==bullet); clearInterval(interval); }
   },16);
 }
-
-// 発射ボタン・スペースキー（単発制御）
-const fireBtn=document.getElementById("fire-btn");
-fireBtn.addEventListener("mousedown",()=>{ if(!firePressed) fire(); });
-fireBtn.addEventListener("mouseup",()=>{ firePressed=false; });
-fireBtn.addEventListener("mouseleave",()=>{ firePressed=false; });
-document.addEventListener("keydown",(e)=>{ if(e.code==="Space" && !firePressed) fire(); });
-document.addEventListener("keyup",(e)=>{ if(e.code==="Space") firePressed=false; });
 
 // スコア更新
 setInterval(()=>{ scoreElem.textContent="スコア: "+score; },50);
